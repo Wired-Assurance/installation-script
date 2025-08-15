@@ -85,23 +85,26 @@ echo -e "${GREEN}✅ Project ID stored securely in Docker volume${NC}"
 
 # Detect platform and select image tag
 ARCH=$(uname -m)
-IMAGE_TAG="latest"
-if [[ "$ARCH" == "arm64" || "$ARCH" == "aarch64" ]]; then
-  IMAGE_TAG="arm64"
+DOCKER_PLATFORM=""
+# Allow override via DOCKER_WAF_PLATFORM env variable
+if [[ -n "$DOCKER_WAF_PLATFORM" ]]; then
+  DOCKER_PLATFORM="--platform $DOCKER_WAF_PLATFORM"
+elif [[ "$ARCH" == "arm64" || "$ARCH" == "aarch64" ]]; then
+  DOCKER_PLATFORM="--platform linux/amd64"
 fi
 
-echo "📦 Downloading APISphere WAF image for $ARCH..."
-if ! docker pull -q ezeanacmichael/apisphere-waf:$IMAGE_TAG >/dev/null; then
-  echo -e "${RED}❌ Failed to pull Docker image for $ARCH (${IMAGE_TAG})${NC}"
+echo "📦 Downloading APISphere WAF image for $ARCH $DOCKER_PLATFORM..."
+if ! docker pull -q $DOCKER_PLATFORM ezeanacmichael/apisphere-waf:latest >/dev/null; then
+  echo -e "${RED}❌ Failed to pull Docker image for $ARCH${NC}"
   echo -e "${YELLOW}Possible solutions:"
   echo "  1. Check your internet connection"
   echo "  2. Verify Docker Hub access: docker pull busybox"
   echo "  3. Try with VPN if on corporate network"
-  echo "  4. If you are on Apple Silicon (M1/M2), ensure the image supports arm64."
+  echo "  4. If you are on Apple Silicon (M1/M2), try: DOCKER_WAF_PLATFORM=linux/amd64 ./install.sh"
   echo -e "${NC}"
   exit 1
 fi
-echo -e "${GREEN}✅ Image downloaded successfully for $ARCH (${IMAGE_TAG})${NC}"
+echo -e "${GREEN}✅ Image downloaded successfully for $ARCH${NC}"
 
 # Backend service check
 echo "🔍 Verifying backend service on port $BACKEND_PORT..."
