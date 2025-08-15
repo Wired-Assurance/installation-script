@@ -50,6 +50,7 @@ if ! command -v docker >/dev/null 2>&1; then
   echo -e "${YELLOW}Tip: Install Docker Desktop from https://www.docker.com/products/docker-desktop and ensure 'docker' is in your PATH${NC}"
   exit 1
 fi
+echo -e "${GREEN}✅ Docker is available${NC}"
 
 # Docker status check
 echo "🐳 Checking Docker status..."

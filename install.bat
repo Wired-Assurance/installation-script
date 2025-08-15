@@ -43,6 +43,7 @@ if errorlevel 1 (
     echo [TIP]  Please install Docker Desktop from https://www.docker.com/products/docker-desktop and ensure 'docker' is in your PATH.
     exit /b 1
 )
+echo [OK] Docker is available
 
 echo [CHECK] Verifying Docker status...
 docker info >nul 2>&1
