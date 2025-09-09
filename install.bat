@@ -39,9 +39,43 @@ echo.
 echo [CHECK] Verifying Docker availability...
 docker --version >nul 2>&1
 if errorlevel 1 (
-    echo [ERROR] Docker is not installed or not available in PATH.
-    echo [TIP]  Please install Docker Desktop from https://www.docker.com/products/docker-desktop and ensure 'docker' is in your PATH.
-    exit /b 1
+    echo [WARN] Docker is not installed or not available in PATH.
+    echo [INSTALL] Attempting to install Docker Desktop...
+    
+    REM Check if we have admin privileges
+    net session >nul 2>&1
+    if errorlevel 1 (
+        echo [ERROR] Docker installation requires administrator privileges.
+        echo [ACTION] Please run this script as Administrator or install Docker Desktop manually:
+        echo          https://www.docker.com/products/docker-desktop
+        exit /b 1
+    )
+    
+    REM Download and install Docker Desktop
+    echo [DOWNLOAD] Downloading Docker Desktop installer...
+    powershell -Command "& {[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri 'https://desktop.docker.com/win/main/amd64/Docker%%20Desktop%%20Installer.exe' -OutFile 'DockerDesktopInstaller.exe'}"
+    
+    if not exist "DockerDesktopInstaller.exe" (
+        echo [ERROR] Failed to download Docker Desktop installer.
+        echo [TIP]  Please install Docker Desktop manually from https://www.docker.com/products/docker-desktop
+        exit /b 1
+    )
+    
+    echo [INSTALL] Installing Docker Desktop... This may take several minutes.
+    "DockerDesktopInstaller.exe" install --quiet --accept-license
+    
+    if errorlevel 1 (
+        echo [ERROR] Docker Desktop installation failed.
+        echo [TIP]  Please install Docker Desktop manually from https://www.docker.com/products/docker-desktop
+        del "DockerDesktopInstaller.exe" >nul 2>&1
+        exit /b 1
+    )
+    
+    del "DockerDesktopInstaller.exe" >nul 2>&1
+    echo [OK] Docker Desktop installed successfully.
+    echo [INFO] Please restart this script after Docker Desktop has fully started.
+    echo [INFO] You may need to restart your computer for Docker to work properly.
+    exit /b 0
 )
 echo [OK] Docker is available
 
