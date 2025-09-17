@@ -197,9 +197,10 @@ if ! docker pull -q $DOCKER_PLATFORM ezeanacmichael/apisphere-waf:latest >/dev/n
 fi
 echo -e "${GREEN}✅ Image downloaded successfully for $ARCH${NC}"
 
-# Backend service check
+# Backend service check (improved)
 echo "🔍 Verifying backend service on port $BACKEND_PORT..."
-if ! lsof -i :"$BACKEND_PORT" >/dev/null 2>&1; then
+BACKEND_PID=$(lsof -ti tcp:"$BACKEND_PORT")
+if [ -z "$BACKEND_PID" ]; then
   echo -e "${RED}❌ No service detected on port $BACKEND_PORT${NC}"
   echo -e "${YELLOW}Please start your backend application first:${NC}"
   echo ""
@@ -211,8 +212,52 @@ if ! lsof -i :"$BACKEND_PORT" >/dev/null 2>&1; then
   echo ""
   echo -e "${YELLOW}After starting your app, rerun this script${NC}"
   exit 1
+else
+  # Try to identify backend process type
+  BACKEND_CMD=$(ps -p "$BACKEND_PID" -o comm= 2>/dev/null)
+  if [[ ! "$BACKEND_CMD" =~ (node|python|java|ruby|gunicorn|uwsgi|dotnet|rails|flask|go|php|nginx|httpd|apache2) ]]; then
+    echo -e "${YELLOW}⚠️  Service detected on port $BACKEND_PORT, but not a typical backend process ($BACKEND_CMD)${NC}"
+    echo -e "${YELLOW}Proceeding, but please ensure your backend is running as expected.${NC}"
+  fi
+  echo -e "${GREEN}✅ Backend service confirmed on port $BACKEND_PORT ($BACKEND_CMD)${NC}"
 fi
-echo -e "${GREEN}✅ Backend service confirmed on port $BACKEND_PORT${NC}"
+
+# Port conflict check for WAF_PORT (matches .bat logic)
+echo "🔎 Checking if WAF port $WAF_PORT is available..."
+WAF_PORT_IN_USE=0
+
+# Check if any process is using the port
+if lsof -i tcp:"$WAF_PORT" >/dev/null 2>&1; then
+  WAF_PORT_IN_USE=1
+fi
+
+# Check if any Docker container is using the port
+DOCKER_CONFLICT_CONTAINER_IDS=$(docker ps --format '{{.ID}} {{.Ports}}' | grep ":$WAF_PORT->8080" | awk '{print $1}')
+if [ -n "$DOCKER_CONFLICT_CONTAINER_IDS" ]; then
+  WAF_PORT_IN_USE=1
+fi
+
+if [ "$WAF_PORT_IN_USE" -eq 1 ]; then
+  echo -e "${YELLOW}⚠️  Port $WAF_PORT is already in use${NC}"
+  # Try to stop conflicting Docker containers
+  if [ -n "$DOCKER_CONFLICT_CONTAINER_IDS" ]; then
+    for cid in $DOCKER_CONFLICT_CONTAINER_IDS; do
+      echo "🧹 Stopping conflicting Docker container: $cid"
+      docker stop "$cid" >/dev/null 2>&1
+      docker rm "$cid" >/dev/null 2>&1
+    done
+  fi
+  # Check again if port is still in use
+  if lsof -i tcp:"$WAF_PORT" >/dev/null 2>&1; then
+    echo -e "${RED}❌ Port $WAF_PORT is still in use after Docker cleanup${NC}"
+    echo -e "${YELLOW}Tips:${NC}"
+    echo "  1. Close any application using port $WAF_PORT"
+    echo "  2. Choose a different WAF_PORT"
+    echo "  3. Run: lsof -i :$WAF_PORT"
+    exit 1
+  fi
+  echo -e "${GREEN}✅ Port conflict resolved${NC}"
+fi
 
 # Stop and remove any container using the target WAF port
 existing_container=$(docker ps --format '{{.ID}} {{.Ports}}' | grep ":$WAF_PORT->8080" | awk '{print $1}')

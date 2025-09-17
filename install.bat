@@ -195,7 +195,7 @@ echo   Direct backend: http://localhost:%BACKEND_PORT%
 echo   WAF-protected:  http://localhost:%WAF_PORT%
 echo.
 echo [TEST] Verify WAF operation:
-echo   curl -v http://localhost:%WAF_PORT%/health-check
+echo   curl -v http://localhost:%WAF_PORT%/
 echo   curl -v http://localhost:%WAF_PORT%/ --header "X-Test-Header: testvalue"
 echo.
 echo [NOTE] Allow 1-2 minutes for full initialization
