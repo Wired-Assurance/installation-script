@@ -105,13 +105,20 @@ if errorlevel 1 (
 echo [OK] Project ID stored securely in Docker volume
 
 echo [PULL] Downloading APISphere WAF image...
-docker pull ezeanacmichael/apisphere-waf:latest >nul
+REM Public ECR repository URL format: public.ecr.aws/[registry-alias]/[repository-name]:[tag]
+REM Private ECR repository URL format: [aws-account-id].dkr.ecr.[region].amazonaws.com/[repository-name]:[tag]
+
+REM Replace with your actual ECR repository URL
+set ECR_REPO=public.ecr.aws/u2u6i4x5/waf-image
+set IMAGE_TAG=latest
+
+docker pull %ECR_REPO%:%IMAGE_TAG% >nul
 if errorlevel 1 (
     echo [ERROR] Image download failed. Check network connection
-    echo [TIP]  Try manual pull: docker pull ezeanacmichael/apisphere-waf:latest
+    echo [TIP]  Try manual pull: docker pull %ECR_REPO%:%IMAGE_TAG%
     exit /b 1
 )
-echo [OK] Image downloaded successfully
+echo [OK] Image downloaded successfully from Amazon ECR
 
 echo [CHECK] Verifying backend on port %BACKEND_PORT%...
 set SERVICE_RUNNING=false
@@ -167,7 +174,7 @@ docker run -d --name apisphere-waf-%PLATFORM_ID% ^
     -e PLATFORM_ID=%PLATFORM_ID% ^
     -e BACKEND_PORT=%BACKEND_PORT% ^
     -p %WAF_PORT%:8080 ^
-    ezeanacmichael/apisphere-waf:latest
+    %ECR_REPO%:%IMAGE_TAG%
 
 
 echo [STATUS] Waiting for container initialization (5 seconds)...

@@ -172,30 +172,26 @@ if [ $? -ne 0 ]; then
 fi
 echo -e "${GREEN}✅ Project ID stored securely in Docker volume${NC}"
 
-# Pull Docker image
+# Pull Docker image from Amazon ECR
+# Public ECR repository URL format: public.ecr.aws/[registry-alias]/[repository-name]:[tag]
+# Private ECR repository URL format: [aws-account-id].dkr.ecr.[region].amazonaws.com/[repository-name]:[tag]
 
-# Detect platform and select image tag
-ARCH=$(uname -m)
-DOCKER_PLATFORM=""
-# Allow override via DOCKER_WAF_PLATFORM env variable
-if [[ -n "$DOCKER_WAF_PLATFORM" ]]; then
-  DOCKER_PLATFORM="--platform $DOCKER_WAF_PLATFORM"
-elif [[ "$ARCH" == "arm64" || "$ARCH" == "aarch64" ]]; then
-  DOCKER_PLATFORM="--platform linux/amd64"
-fi
+# Replace with your actual ECR repository URL
+ECR_REPO="public.ecr.aws/u2u6i4x5/waf-image"
+IMAGE_TAG="latest"
 
-echo "📦 Downloading APISphere WAF image for $ARCH $DOCKER_PLATFORM..."
-if ! docker pull -q $DOCKER_PLATFORM ezeanacmichael/apisphere-waf:latest >/dev/null; then
-  echo -e "${RED}❌ Failed to pull Docker image for $ARCH${NC}"
+echo "📦 Downloading APISphere WAF image ($ARCH $DOCKER_PLATFORM)..."
+if ! docker pull -q $DOCKER_PLATFORM $ECR_REPO:$IMAGE_TAG >/dev/null; then
+  echo -e "${RED}❌ Failed to pull Docker image from Amazon ECR for $ARCH${NC}"
   echo -e "${YELLOW}Possible solutions:"
   echo "  1. Check your internet connection"
-  echo "  2. Verify Docker Hub access: docker pull busybox"
+  echo "  2. Verify ECR access: docker pull $ECR_REPO:$IMAGE_TAG"
   echo "  3. Try with VPN if on corporate network"
   echo "  4. If you are on Apple Silicon (M1/M2), try: DOCKER_WAF_PLATFORM=linux/amd64 ./install.sh"
   echo -e "${NC}"
   exit 1
 fi
-echo -e "${GREEN}✅ Image downloaded successfully for $ARCH${NC}"
+echo -e "${GREEN}✅ Image downloaded successfully from Amazon ECR for $ARCH${NC}"
 
 # Backend service check (improved)
 echo "🔍 Verifying backend service on port $BACKEND_PORT..."
@@ -280,7 +276,7 @@ docker run -d \
   -e PLATFORM_ID="$PLATFORM_ID" \
   -e BACKEND_PORT="$BACKEND_PORT" \
   -p "$WAF_PORT":8080 \
-  ezeanacmichael/apisphere-waf:latest >/dev/null
+  $ECR_REPO:$IMAGE_TAG >/dev/null
 
 # Verify startup
 echo "⏳ Waiting for container initialization (5 seconds)..."
