@@ -276,12 +276,12 @@ docker rm -f apisphere-waf-"$PLATFORM_ID" >/dev/null 2>&1
 echo "🛡️ Starting APISphere WAF protection..."
 docker run -d \
   --name apisphere-waf-"$PLATFORM_ID" \
-  -v apisphere-config-"$PLATFORM_ID":/app/config \
+  -v apisphere-config-"$PLATFORM_ID":/app/config:ro \
   -e PLATFORM_ID="$PLATFORM_ID" \
-  -e BACKEND_PORT="$BACKEND_PORT" \
   -e BACKEND_HOST=host.docker.internal \
+  -e BACKEND_PORT=4000 \
+  --add-host=host.docker.internal:host-gateway \
   -p "$WAF_PORT":8080 \
-  --user root \
   ezeanacmichael/apisphere-waf:latest
 
 
@@ -289,14 +289,9 @@ docker run -d \
 echo "⏳ Waiting for container initialization (5 seconds)..."
 sleep 5
 
-# Generate envoy.yaml with substituted environment variables
-docker exec -it apisphere-waf-9e8bf3fa-b1a6-4750-8f80-64519a42da4b sh -c "envsubst < /etc/envoy/envoy.yaml.template > /etc/envoy/envoy.yaml"
-
 # Verify PLATFORM_ID inside the running container
 docker exec apisphere-waf-"$PLATFORM_ID" ls -l /app/config
 docker exec apisphere-waf-"$PLATFORM_ID" cat /app/config/PLATFORM_ID
-docker exec -it apisphere-waf-9e8bf3fa-b1a6-4750-8f80-64519a42da4b cat /etc/envoy/envoy.yaml
-
 
 if docker ps | grep -q "apisphere-waf-$PLATFORM_ID"; then
   echo -e "${GREEN}✅ WAF started successfully${NC}"
