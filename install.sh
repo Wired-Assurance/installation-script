@@ -195,7 +195,7 @@ echo -e "${GREEN}✅ Image downloaded successfully from Amazon ECR for $ARCH${NC
 
 # Backend service check (improved)
 echo "🔍 Verifying backend service on port $BACKEND_PORT..."
-BACKEND_PID=$(lsof -ti tcp:"$BACKEND_PORT")
+BACKEND_PID=$(sudo lsof -ti tcp:"$BACKEND_PORT" 2>/dev/null)
 if [ -z "$BACKEND_PID" ]; then
   echo -e "${RED}❌ No service detected on port $BACKEND_PORT${NC}"
   echo -e "${YELLOW}Please start your backend application first:${NC}"
@@ -274,7 +274,9 @@ docker run -d \
   --name apisphere-waf-"$PLATFORM_ID" \
   -v apisphere-config-"$PLATFORM_ID":/app/config:ro \
   -e PLATFORM_ID="$PLATFORM_ID" \
+  -e BACKEND_HOST=host.docker.internal \
   -e BACKEND_PORT="$BACKEND_PORT" \
+  --add-host=host.docker.internal:host-gateway \
   -p "$WAF_PORT":8080 \
   $ECR_REPO:$IMAGE_TAG >/dev/null
 
