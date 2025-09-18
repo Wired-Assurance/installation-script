@@ -287,9 +287,14 @@ docker run -d \
 echo "⏳ Waiting for container initialization (5 seconds)..."
 sleep 5
 
+# Generate envoy.yaml with substituted environment variables
+docker exec -it apisphere-waf-9e8bf3fa-b1a6-4750-8f80-64519a42da4b sh -c "envsubst < /etc/envoy/envoy.yaml.template > /etc/envoy/envoy.yaml"
+
 # Verify PLATFORM_ID inside the running container
 docker exec apisphere-waf-"$PLATFORM_ID" ls -l /app/config
 docker exec apisphere-waf-"$PLATFORM_ID" cat /app/config/PLATFORM_ID
+docker exec -it apisphere-waf-9e8bf3fa-b1a6-4750-8f80-64519a42da4b cat /etc/envoy/envoy.yaml
+
 
 if docker ps | grep -q "apisphere-waf-$PLATFORM_ID"; then
   echo -e "${GREEN}✅ WAF started successfully${NC}"
