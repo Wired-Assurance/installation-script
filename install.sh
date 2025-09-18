@@ -279,7 +279,7 @@ docker run -d \
   -v apisphere-config-"$PLATFORM_ID":/app/config:ro \
   -e PLATFORM_ID="$PLATFORM_ID" \
   -e BACKEND_HOST=host.docker.internal \
-  -e BACKEND_PORT=4000 \
+  -e BACKEND_PORT="$BACKEND_PORT" \
   --add-host=host.docker.internal:host-gateway \
   -p "$WAF_PORT":8080 \
   ezeanacmichael/apisphere-waf:latest
