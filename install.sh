@@ -199,7 +199,7 @@ echo -e "${GREEN}✅ Image downloaded successfully for $ARCH${NC}"
 
 # Backend service check (improved)
 echo "🔍 Verifying backend service on port $BACKEND_PORT..."
-BACKEND_PID=$(lsof -ti tcp:"$BACKEND_PORT")
+BACKEND_PID=$(sudo lsof -ti tcp:"$BACKEND_PORT" 2>/dev/null)
 if [ -z "$BACKEND_PID" ]; then
   echo -e "${RED}❌ No service detected on port $BACKEND_PORT${NC}"
   echo -e "${YELLOW}Please start your backend application first:${NC}"
