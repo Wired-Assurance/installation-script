@@ -144,11 +144,11 @@ echo -e "${GREEN}✅ Docker is available${NC}"
 
 # Docker status check
 echo "🐳 Checking Docker status..."
-if ! docker info >/dev/null 2>&1; then
+if ! sudo docker info >/dev/null 2>&1; then
   echo -e "${YELLOW}⚠️  Docker is installed but not responding. Trying to start it...${NC}"
   sudo systemctl start docker
   sleep 2
-  if ! docker info >/dev/null 2>&1; then
+if ! sudo docker info >/dev/null 2>&1; then
     echo -e "${RED}❌ Docker is still not running${NC}"
     echo -e "${YELLOW}Check logs with:${NC} sudo journalctl -u docker -n 50"
     exit 1
