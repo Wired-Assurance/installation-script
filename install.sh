@@ -145,9 +145,21 @@ echo -e "${GREEN}✅ Docker is available${NC}"
 # Docker status check
 echo "🐳 Checking Docker status..."
 if ! docker info >/dev/null 2>&1; then
-  echo -e "${RED}❌ Docker is not running. Please start Docker Desktop and try again${NC}"
-  echo -e "${YELLOW}Tip: Ensure Docker is running in your applications folder${NC}"
-  exit 1
+  if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+    echo -e "${YELLOW}Docker is installed but not running. Attempting to start Docker daemon...${NC}"
+    sudo systemctl start docker
+    sleep 2
+    if ! docker info >/dev/null 2>&1; then
+      echo -e "${RED}❌ Docker is still not running. Please check Docker service logs.${NC}"
+      echo -e "${YELLOW}Try:${NC} sudo systemctl status docker"
+      exit 1
+    fi
+    echo -e "${GREEN}✅ Docker daemon started successfully${NC}"
+  else
+    echo -e "${RED}❌ Docker is not running. Please start Docker Desktop and try again${NC}"
+    echo -e "${YELLOW}Tip: Ensure Docker is running in your applications folder${NC}"
+    exit 1
+  fi
 fi
 echo -e "${GREEN}✅ Docker is running${NC}"
 
