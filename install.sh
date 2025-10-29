@@ -168,6 +168,11 @@ echo "$PLATFORM_ID" > temp_id
 docker run --rm -i -v apisphere-config-"$PLATFORM_ID":/config busybox sh -c "cat > /config/PLATFORM_ID && chmod 644 /config/PLATFORM_ID" < temp_id
 rm temp_id
 
+# Store WAF_PORT in Docker volume
+echo "$WAF_PORT" > temp_waf
+docker run --rm -i -v apisphere-config-"$PLATFORM_ID":/config busybox sh -c "cat > /config/WAF_PORT && chmod 644 /config/WAF_PORT" < temp_waf
+rm temp_waf
+
 # Verify storage
 docker run --rm -v apisphere-config-"$PLATFORM_ID":/config busybox sh -c "ls -l /config && cat /config/PLATFORM_ID"
 
