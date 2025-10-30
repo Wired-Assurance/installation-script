@@ -286,8 +286,9 @@ docker run -d \
   -e PLATFORM_ID="$PLATFORM_ID" \
   -e BACKEND_HOST=host.docker.internal \
   -e BACKEND_PORT="$BACKEND_PORT" \
+  -e WAF_PORT="$WAF_PORT" \
   --add-host=host.docker.internal:host-gateway \
-  -p "$WAF_PORT":8080 \
+  -p "$WAF_PORT":"$WAF_PORT" \
   $ECR_REPO:$IMAGE_TAG >/dev/null
 
 # Verify startup

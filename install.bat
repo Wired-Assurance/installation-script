@@ -178,7 +178,8 @@ docker run -d --name apisphere-waf-%PLATFORM_ID% ^
     -v apisphere-config-%PLATFORM_ID%:/app/config:ro ^
     -e PLATFORM_ID=%PLATFORM_ID% ^
     -e BACKEND_PORT=%BACKEND_PORT% ^
-    -p %WAF_PORT%:8080 ^
+    -e WAF_PORT=%WAF_PORT% ^
+    -p %WAF_PORT%:%WAF_PORT% ^
     %ECR_REPO%:%IMAGE_TAG%
 
 
