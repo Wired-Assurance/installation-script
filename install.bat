@@ -87,6 +87,117 @@ if errorlevel 1 (
 )
 echo [OK] Docker is running
 
+REM Detect architecture and set Docker platform
+echo [DETECT] Detecting system architecture...
+for /f "tokens=*" %%i in ('wmic os get osarchitecture ^| findstr /r "[0-9]"') do set ARCH=%%i
+set ARCH=%ARCH: =%
+
+REM Set Docker platform based on architecture
+REM Windows typically runs amd64, but check for ARM64
+if /i "%PROCESSOR_ARCHITECTURE%"=="ARM64" (
+    set DOCKER_PLATFORM=linux/arm64
+) else (
+    set DOCKER_PLATFORM=linux/amd64
+)
+
+echo [INFO] Architecture: %PROCESSOR_ARCHITECTURE%, Docker Platform: %DOCKER_PLATFORM%
+
+REM Pull and run FastAPI WAF Config App to get WAF_CONFIG_PORT
+echo.
+echo [STEP 1] Setting up WAF Configuration Service
+set FASTAPI_ECR_REPO=public.ecr.aws/u2u6i4x5/fastapi-waf-app
+set FASTAPI_IMAGE_TAG=latest
+set FASTAPI_CONTAINER_NAME=waf-config-%PLATFORM_ID%
+
+REM Cleanup existing FastAPI container if it exists
+echo [CLEANUP] Cleaning up existing config containers (if any)...
+docker stop %FASTAPI_CONTAINER_NAME% >nul 2>&1
+docker rm %FASTAPI_CONTAINER_NAME% >nul 2>&1
+
+REM Pull FastAPI config app
+echo [PULL] Pulling WAF Configuration Service image...
+docker pull --platform %DOCKER_PLATFORM% %FASTAPI_ECR_REPO%:%FASTAPI_IMAGE_TAG% >nul 2>&1
+if errorlevel 1 (
+    echo [ERROR] Failed to pull WAF Configuration Service from %FASTAPI_ECR_REPO%:%FASTAPI_IMAGE_TAG%
+    echo [TIP]  Please check your internet connection and ECR access
+    exit /b 1
+)
+echo [OK] Configuration Service image downloaded
+
+REM Run FastAPI config app with host networking to auto-detect available port
+echo [START] Starting WAF Configuration Service...
+docker run -d ^
+    --name %FASTAPI_CONTAINER_NAME% ^
+    --network host ^
+    --restart unless-stopped ^
+    %FASTAPI_ECR_REPO%:%FASTAPI_IMAGE_TAG% >nul 2>&1
+
+if errorlevel 1 (
+    echo [ERROR] Failed to start WAF Configuration Service
+    exit /b 1
+)
+
+REM Wait for container to start and detect the port
+echo [WAIT] Waiting for Configuration Service to initialize and detect port...
+set MAX_WAIT=30
+set WAIT_COUNT=0
+set WAF_CONFIG_PORT=
+
+:WAIT_FOR_PORT
+if %WAIT_COUNT% geq %MAX_WAIT% goto PORT_TIMEOUT
+
+REM Check if container is still running
+docker ps --format "{{.Names}}" | findstr /x "%FASTAPI_CONTAINER_NAME%" >nul
+if errorlevel 1 (
+    echo [ERROR] Configuration Service container stopped unexpectedly
+    echo Container logs:
+    docker logs %FASTAPI_CONTAINER_NAME% 2>&1 | powershell -Command "$input | Select-Object -Last 20"
+    exit /b 1
+)
+
+REM Try to extract port from logs
+REM Save logs to temp file for parsing
+docker logs %FASTAPI_CONTAINER_NAME% 2>&1 > temp_config_logs.txt
+
+REM Look for PORT= format first
+for /f "tokens=2 delims==" %%p in ('findstr /r "PORT=[0-9]" temp_config_logs.txt') do (
+    set WAF_CONFIG_PORT=%%p
+    goto PORT_FOUND
+)
+
+REM Fallback: look for "Found available port: X" message
+for /f "tokens=4" %%p in ('findstr "Found available port:" temp_config_logs.txt') do (
+    set WAF_CONFIG_PORT=%%p
+    goto PORT_FOUND
+)
+
+del temp_config_logs.txt >nul 2>&1
+
+timeout /t 1 /nobreak >nul
+set /a WAIT_COUNT+=1
+goto WAIT_FOR_PORT
+
+:PORT_FOUND
+del temp_config_logs.txt >nul 2>&1
+echo [OK] Configuration Service running on port: %WAF_CONFIG_PORT%
+echo.
+goto PORT_DETECTED
+
+:PORT_TIMEOUT
+del temp_config_logs.txt >nul 2>&1
+echo [ERROR] Could not detect port from Configuration Service logs
+echo Container logs:
+docker logs %FASTAPI_CONTAINER_NAME% 2>&1 | powershell -Command "$input | Select-Object -Last 30"
+echo.
+echo [TROUBLESHOOT]
+echo   1. Check logs: docker logs %FASTAPI_CONTAINER_NAME%
+echo   2. Verify container is running: docker ps ^| findstr %FASTAPI_CONTAINER_NAME%
+exit /b 1
+
+:PORT_DETECTED
+echo [OK] WAF Configuration Service ready on port %WAF_CONFIG_PORT%
+echo.
+
 echo [VOLUME] Creating persistent storage for project ID...
 docker volume create apisphere-config-%PLATFORM_ID% >nul 2>&1
 
@@ -109,7 +220,7 @@ if errorlevel 1 (
 )
 echo [OK] Project ID stored securely in Docker volume
 
-echo [PULL] Downloading APISphere WAF image...
+echo [STEP 2] Downloading APISphere WAF Protection Image
 REM Public ECR repository URL format: public.ecr.aws/[registry-alias]/[repository-name]:[tag]
 REM Private ECR repository URL format: [aws-account-id].dkr.ecr.[region].amazonaws.com/[repository-name]:[tag]
 
@@ -117,13 +228,17 @@ REM Replace with your actual ECR repository URL
 set ECR_REPO=public.ecr.aws/u2u6i4x5/waf-image
 set IMAGE_TAG=latest
 
-docker pull %ECR_REPO%:%IMAGE_TAG% >nul
+echo [PULL] Pulling WAF image for %PROCESSOR_ARCHITECTURE% (%DOCKER_PLATFORM%)...
+docker pull --platform %DOCKER_PLATFORM% %ECR_REPO%:%IMAGE_TAG% >nul 2>&1
 if errorlevel 1 (
-    echo [ERROR] Image download failed. Check network connection
-    echo [TIP]  Try manual pull: docker pull %ECR_REPO%:%IMAGE_TAG%
+    echo [ERROR] Failed to pull Docker image from Amazon ECR for %PROCESSOR_ARCHITECTURE%
+    echo [TIP]  1. Check your internet connection
+    echo        2. Verify ECR access: docker pull %ECR_REPO%:%IMAGE_TAG%
+    echo        3. Try with VPN if on corporate network
     exit /b 1
 )
-echo [OK] Image downloaded successfully from Amazon ECR
+echo [OK] WAF Protection image downloaded successfully
+echo.
 
 echo [CHECK] Verifying backend on port %BACKEND_PORT%...
 set SERVICE_RUNNING=false
@@ -168,19 +283,20 @@ if "%PORT_CONFLICT%"=="true" (
     echo [OK] Port conflict resolved
 )
 
-echo [CLEANUP] Removing old containers...
+echo [CLEANUP] Removing old WAF containers (if any)...
 docker rm -f apisphere-waf-%PLATFORM_ID% >nul 2>&1
 
-
-
-echo [START] Launching WAF protection...
+echo [STEP 3] Starting APISphere WAF Protection
+echo [START] Starting WAF protection service...
 docker run -d --name apisphere-waf-%PLATFORM_ID% ^
     -v apisphere-config-%PLATFORM_ID%:/app/config:ro ^
     -e PLATFORM_ID=%PLATFORM_ID% ^
+    -e BACKEND_HOST=host.docker.internal ^
     -e BACKEND_PORT=%BACKEND_PORT% ^
     -e WAF_PORT=%WAF_PORT% ^
+    -e WAF_CONFIG_PORT=%WAF_CONFIG_PORT% ^
     -p %WAF_PORT%:%WAF_PORT% ^
-    %ECR_REPO%:%IMAGE_TAG%
+    %ECR_REPO%:%IMAGE_TAG% >nul 2>&1
 
 
 echo [STATUS] Waiting for container initialization (5 seconds)...
@@ -199,16 +315,31 @@ echo [OK] APISphere WAF started successfully
 echo.
 echo [SUCCESS] Installation Complete!
 echo.
-echo [PERSISTENCE] Platform ID stored in Docker volume:
-echo   Volume Name: apisphere-config-%PLATFORM_ID%
-echo   Mount Point: /app/config (read-only in container)
+echo [PROTECTION STATUS]
+echo   Project ID:           %PLATFORM_ID%
+echo   Backend URL:          http://localhost:%BACKEND_PORT%
+echo   Protected URL:        http://localhost:%WAF_PORT%
+echo   Config Service Port:  %WAF_CONFIG_PORT%
 echo.
-echo [ENDPOINTS]
-echo   Direct backend: http://localhost:%BACKEND_PORT%
-echo   WAF-protected:  http://localhost:%WAF_PORT%
+echo [SECURITY VERIFICATION]
+echo   Test safe request:
+echo     curl -I http://localhost:%WAF_PORT%/
 echo.
-echo [TEST] Verify WAF operation:
-echo   curl -v http://localhost:%WAF_PORT%/
-echo   curl -v http://localhost:%WAF_PORT%/ --header "X-Test-Header: testvalue"
+echo   Test blocked request:
+echo     curl "http://localhost:%WAF_PORT%/?exec=/bin/bash"
 echo.
-echo [NOTE] Allow 1-2 minutes for full initialization
+echo [MANAGEMENT COMMANDS]
+echo   View WAF logs:        docker logs apisphere-waf-%PLATFORM_ID%
+echo   View Config logs:     docker logs %FASTAPI_CONTAINER_NAME%
+echo   Stop WAF:             docker stop apisphere-waf-%PLATFORM_ID%
+echo   Stop Config Service:  docker stop %FASTAPI_CONTAINER_NAME%
+echo   Restart WAF:          docker start apisphere-waf-%PLATFORM_ID%
+echo   Remove WAF:           docker rm -f apisphere-waf-%PLATFORM_ID%
+echo   Remove Config:        docker rm -f %FASTAPI_CONTAINER_NAME%
+echo   Remove volume:        docker volume rm apisphere-config-%PLATFORM_ID%
+echo.
+echo [PERSISTENCE INFO]
+echo   PLATFORM_ID is stored in Docker volume:
+echo     apisphere-config-%PLATFORM_ID%
+echo.
+echo [NOTE] All traffic should now go through the protected port!
