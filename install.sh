@@ -180,7 +180,7 @@ docker rm ${FASTAPI_CONTAINER_NAME} >/dev/null 2>&1
 
 # Pull FastAPI config app
 echo "📥 Pulling WAF Configuration Service image..."
-if ! docker pull ${FASTAPI_ECR_REPO}:${FASTAPI_IMAGE_TAG} >/dev/null 2>&1; then
+if ! docker pull --platform ${DOCKER_PLATFORM} ${FASTAPI_ECR_REPO}:${FASTAPI_IMAGE_TAG} >/dev/null 2>&1; then
   echo -e "${RED}❌ Failed to pull WAF Configuration Service from ${FASTAPI_ECR_REPO}:${FASTAPI_IMAGE_TAG}${NC}"
   echo -e "${YELLOW}Please check your internet connection and ECR access${NC}"
   exit 1
